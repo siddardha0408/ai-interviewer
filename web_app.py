@@ -10,14 +10,55 @@ GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY", None)
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", None)
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
 
-# --- SETUP ---
-if GOOGLE_API_KEY:
+# --- SMART MODEL SELECTOR (The Fix) ---
+def configure_best_model():
+    if not GOOGLE_API_KEY: return None
+    
     genai.configure(api_key=GOOGLE_API_KEY)
     
-    # 🛑 HARDCODED FIX: Using 'gemini-pro' because it works on all library versions
-    model = genai.GenerativeModel('gemini-3-pro-preview')
+    # 1. Ask Google what models are available for THIS key
+    available_models = []
+    try:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+    except Exception as e:
+        st.error(f"Error listing models: {e}")
+        return None
 
-# --- FUNCTIONS ---
+    # 2. Priority List (We want these first if available)
+    # We prioritize 1.5 Flash because it has the best Free Tier limits
+    priority_list = [
+        "models/gemini-1.5-flash",
+        "models/gemini-1.5-flash-latest",
+        "models/gemini-1.5-pro",
+        "models/gemini-1.0-pro",
+        "models/gemini-pro"
+    ]
+
+    selected_model_name = None
+
+    # Check if any priority model exists in the user's list
+    for priority in priority_list:
+        if priority in available_models:
+            selected_model_name = priority
+            break
+            
+    # Fallback: If none match, just take the first available one
+    if not selected_model_name and available_models:
+        selected_model_name = available_models[0]
+
+    if selected_model_name:
+        print(f"✅ Auto-Selected Model: {selected_model_name}")
+        return genai.GenerativeModel(selected_model_name)
+    else:
+        st.error("❌ No available Gemini models found for this API Key.")
+        return None
+
+# Initialize the model using the smart function
+model = configure_best_model()
+
+# --- AUDIO FUNCTION ---
 def get_elevenlabs_audio(text):
     if not ELEVENLABS_API_KEY: return None
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
@@ -67,20 +108,23 @@ with st.sidebar:
         st.success("File Uploaded! ✅")
         if not st.session_state.interview_active:
             if st.button("🚀 Start Interview"):
-                with st.spinner("AI is reading your resume..."):
-                    try:
-                        text = read_pdf(uploaded_file)
-                        prompt = f"Resume Content: {text}. \n\nAct as a professional interviewer. Greet the candidate by name (if found) and ask the first question based on this resume."
-                        
-                        chat = model.start_chat(history=[])
-                        response = chat.send_message(prompt)
-                        
-                        st.session_state.chat_session = chat
-                        st.session_state.messages.append({"role": "assistant", "content": response.text})
-                        st.session_state.interview_active = True
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error starting interview: {e}")
+                if not model:
+                    st.error("AI Brain not connected.")
+                else:
+                    with st.spinner("AI is reading your resume..."):
+                        try:
+                            text = read_pdf(uploaded_file)
+                            prompt = f"Resume Content: {text}. \n\nAct as a professional interviewer. Greet the candidate by name (if found) and ask the first question based on this resume."
+                            
+                            chat = model.start_chat(history=[])
+                            response = chat.send_message(prompt)
+                            
+                            st.session_state.chat_session = chat
+                            st.session_state.messages.append({"role": "assistant", "content": response.text})
+                            st.session_state.interview_active = True
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error starting interview: {e}")
 
 # --- MAIN CHAT ---
 for msg in st.session_state.messages:
@@ -101,7 +145,7 @@ if user_input:
             with st.spinner("Thinking..."):
                 try:
                     chat = st.session_state.chat_session
-                    time.sleep(1) # Safety delay
+                    time.sleep(1) 
                     response = chat.send_message(user_input)
                     st.write(response.text)
                     
@@ -113,10 +157,6 @@ if user_input:
 
                 except Exception as e:
                     if "429" in str(e) or "ResourceExhausted" in str(e):
-                        st.error("🚦 Speed Limit Hit! Please wait 10 seconds before replying again.")
-                    elif "404" in str(e):
-                         st.error("❌ Model Error: Still facing connection issues. Please try the 'Delete & Redeploy' step below.")
+                        st.error("🚦 Speed Limit Hit! Please wait 10 seconds.")
                     else:
                         st.error(f"System Error: {e}")
-
-
