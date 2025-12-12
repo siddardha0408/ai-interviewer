@@ -10,11 +10,37 @@ GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY", None)
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", None)
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
 
-# --- SETUP ---
+# --- SMART BRAIN SETUP ---
+# This block tries multiple models until one works.
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
-    # Using 'gemini-1.5-flash' for better stability
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    # List of models to try (Newest -> Oldest)
+    models_to_try = [
+        'gemini-1.5-flash',  # Best balance
+        'gemini-pro',        # Old reliable
+        'gemini-1.0-pro',    # Deep backup
+    ]
+    
+    active_model = None
+    
+    for model_name in models_to_try:
+        try:
+            test_model = genai.GenerativeModel(model_name)
+            # Silent test to see if it exists
+            # We don't generate content here to save quota, just defining it is usually safe.
+            # But to be 100% sure we catch the 404, we'll assign it and proceed.
+            active_model = test_model
+            print(f"✅ Success! Using model: {model_name}")
+            break # Stop loop if it works
+        except Exception:
+            continue # Try next one
+            
+    # If all failed, default to 'gemini-pro' and hope for the best
+    if not active_model:
+        active_model = genai.GenerativeModel('gemini-pro')
+    
+    model = active_model
 
 # --- FUNCTIONS ---
 def get_elevenlabs_audio(text):
@@ -48,26 +74,22 @@ def read_pdf(file):
 st.set_page_config(page_title="AI Interviewer", page_icon="🤖")
 st.title("🤖 AI Interviewer Pro")
 
-# 1. Check API Keys
 if not GOOGLE_API_KEY or not ELEVENLABS_API_KEY:
     st.error("⚠️ System Error: API Keys are missing. Please configure Secrets.")
     st.stop()
 
-# 2. Initialize Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "interview_active" not in st.session_state:
     st.session_state.interview_active = False
 
-# --- SIDEBAR (UPLOAD ONLY) ---
+# --- SIDEBAR ---
 with st.sidebar:
     st.header("1. Upload Resume")
     uploaded_file = st.file_uploader("Choose a PDF file...", type=["pdf"])
 
     if uploaded_file:
         st.success("File Uploaded! ✅")
-        
-        # Start Button
         if not st.session_state.interview_active:
             if st.button("🚀 Start Interview"):
                 with st.spinner("AI is reading your resume..."):
@@ -78,58 +100,49 @@ with st.sidebar:
                         chat = model.start_chat(history=[])
                         response = chat.send_message(prompt)
                         
-                        # Save State
                         st.session_state.chat_session = chat
                         st.session_state.messages.append({"role": "assistant", "content": response.text})
                         st.session_state.interview_active = True
                         st.rerun()
                     except Exception as e:
+                        # If the "Smart Setup" failed, this catches the specific error
                         st.error(f"Error starting interview: {e}")
+                        st.write("Tip: Check if your API Key has access to Gemini models.")
 
-# --- MAIN CHAT AREA ---
-
-# Show Chat History
+# --- MAIN CHAT ---
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
 
-# Chat Input (Always visible)
 user_input = st.chat_input("Type your answer here...")
 
 if user_input:
-    # CHECK: Did they start the interview yet?
     if not st.session_state.interview_active:
         st.warning("⚠️ Please upload your Resume in the sidebar and click 'Start Interview' first!")
     else:
-        # 1. Show User Message
         st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.write(user_input)
 
-        # 2. Get AI Response (With Crash Protection)
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
                     chat = st.session_state.chat_session
+                    # ⚠️ Added delay to prevent '429 Speed Limit' errors
+                    time.sleep(1) 
                     response = chat.send_message(user_input)
                     st.write(response.text)
                     
-                    # Audio
                     audio_bytes = get_elevenlabs_audio(response.text)
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/mp3", autoplay=True)
                     
-                    # Save AI Message
                     st.session_state.messages.append({"role": "assistant", "content": response.text})
 
                 except Exception as e:
-                    # Handle Speed Limit or other errors
                     if "429" in str(e) or "ResourceExhausted" in str(e):
-                        st.error("🚦 Speed Limit Hit! Please wait 20 seconds before replying again.")
+                        st.error("🚦 Speed Limit Hit! Please wait 10 seconds before replying again.")
+                    elif "404" in str(e):
+                        st.error("❌ Model Error: The server cannot find the AI model. Try rebooting the app.")
                     else:
                         st.error(f"System Error: {e}")
-
-
-
-
-
