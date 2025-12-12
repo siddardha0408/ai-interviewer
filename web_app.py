@@ -14,7 +14,7 @@ VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
     # Using 'gemini-1.5-flash' for better stability
-    model = genai.GenerativeModel('gemini-flash-latest')
+    model = genai.GenerativeModel('gemini-pro')
 
 # --- FUNCTIONS ---
 def get_elevenlabs_audio(text):
@@ -128,5 +128,6 @@ if user_input:
                         st.error("🚦 Speed Limit Hit! Please wait 20 seconds before replying again.")
                     else:
                         st.error(f"System Error: {e}")
+
 
 
