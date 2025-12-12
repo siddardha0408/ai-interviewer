@@ -8,7 +8,7 @@ import speech_recognition as sr
 
 # --- CONFIGURATION ---
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY", None)
-ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", None)
+ELEVENLABS_API_KEY = st.secrets.get("E", None)
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM" 
 
 # --- UI SETUP ---
@@ -190,4 +190,5 @@ if st.session_state.interview_active:
                     else: st.error(f"Error: {e}")
 else:
     if not uploaded_file: st.info("👈 Upload Resume to Start")
+
 
