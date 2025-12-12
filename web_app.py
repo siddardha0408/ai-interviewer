@@ -3,6 +3,14 @@ import google.generativeai as genai
 import requests
 import pypdf
 import os
+import time # Add this to the top imports
+
+# ... inside the chat loop ...
+with st.chat_message("assistant"):
+    with st.spinner("Thinking..."):
+        time.sleep(2) # Wait 2 seconds to respect the speed limit
+        chat = st.session_state.chat_session
+        response = chat.send_message(user_input)
 
 # --- CONFIGURATION ---
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY", None)
@@ -125,3 +133,4 @@ else:
         st.session_state.messages.append({"role": "assistant", "content": response.text})
    
    
+
