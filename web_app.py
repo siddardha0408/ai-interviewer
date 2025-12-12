@@ -5,8 +5,6 @@ import pypdf
 import os
 
 # --- CONFIGURATION ---
-# This looks for keys in the Cloud "Secrets" first.
-# If not found, it warns the user.
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY", None)
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", None)
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
@@ -48,53 +46,82 @@ def read_pdf(file):
 st.set_page_config(page_title="AI Interviewer", page_icon="🤖")
 st.title("🤖 AI Interviewer Pro")
 
-# Check for keys
+# 1. Check API Keys
 if not GOOGLE_API_KEY or not ELEVENLABS_API_KEY:
-    st.error("⚠️ API Keys are missing! Please set them in Streamlit Secrets.")
+    st.error("⚠️ System Error: API Keys are missing. Please configure Secrets.")
     st.stop()
 
+# 2. Initialize Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "interview_active" not in st.session_state:
+    st.session_state.interview_active = False
 
-# Sidebar
+# --- SIDEBAR (UPLOAD ONLY) ---
 with st.sidebar:
-    st.header("Setup")
-    uploaded_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
-    if uploaded_file and not st.session_state.get("resume_loaded", False):
-        if st.button("Analyze Resume"):
-            with st.spinner("Reading..."):
-                text = read_pdf(uploaded_file)
-                prompt = f"Resume Content: {text}. Greet the candidate and ask the first question."
+    st.header("1. Upload Resume")
+    # This forces the user to pick a file. 
+    # The app will NOT proceed without this.
+    uploaded_file = st.file_uploader("Choose a PDF file...", type=["pdf"])
+
+    if uploaded_file:
+        st.success("File Uploaded! ✅")
+        
+        # Only show the button if file is there and interview hasn't started
+        if not st.session_state.interview_active:
+            if st.button("🚀 Start Interview"):
+                with st.spinner("AI is reading your resume..."):
+                    # Read the User's PDF
+                    text = read_pdf(uploaded_file)
+                    
+                    # Send to AI
+                    prompt = f"Resume Content: {text}. \n\nAct as a professional interviewer. Greet the candidate by name (if found) and ask the first question based on this resume."
+                    
+                    chat = model.start_chat(history=[])
+                    response = chat.send_message(prompt)
+                    
+                    # Save State
+                    st.session_state.chat_session = chat
+                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+                    st.session_state.interview_active = True
+                    st.rerun()
+
+# --- MAIN AREA ---
+
+# If NO interview active, show instructions
+if not st.session_state.interview_active:
+    st.info("👈 Please upload your Resume (PDF) in the sidebar to begin.")
+    st.write("The AI needs to read your resume to ask specific questions.")
+
+# If interview IS active, show the Chat
+else:
+    # Display Chat History
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    # Chat Input (Only appears when interview is active)
+    user_input = st.chat_input("Type your answer here...")
+
+    if user_input:
+        # Show User Message
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.write(user_input)
+
+        # Get AI Response
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                chat = st.session_state.chat_session
+                response = chat.send_message(user_input)
+                st.write(response.text)
                 
-                chat = model.start_chat(history=[])
-                response = chat.send_message(prompt)
+                # Play Audio
+                audio_bytes = get_elevenlabs_audio(response.text)
+                if audio_bytes:
+                    st.audio(audio_bytes, format="audio/mp3", autoplay=True)
                 
-                st.session_state.chat_session = chat
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
-                st.session_state.resume_loaded = True
-                st.rerun()
-
-# Chat Area
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
-
-# Input Area
-user_input = st.chat_input("Type your answer here...")
-
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.write(user_input)
-
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            chat = st.session_state.chat_session
-            response = chat.send_message(user_input)
-            st.write(response.text)
-            
-            audio_bytes = get_elevenlabs_audio(response.text)
-            if audio_bytes:
-                st.audio(audio_bytes, format="audio/mp3", autoplay=True)
-            
-    st.session_state.messages.append({"role": "assistant", "content": response.text})
+        # Save AI Message
+        st.session_state.messages.append({"role": "assistant", "content": response.text})
+   
+   
