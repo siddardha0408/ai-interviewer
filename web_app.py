@@ -20,7 +20,7 @@ VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
 # --- SETUP ---
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
-    model = genai.GenerativeModel('gemini-flash-latest')
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
 # --- FUNCTIONS ---
 def get_elevenlabs_audio(text):
@@ -133,4 +133,5 @@ else:
         st.session_state.messages.append({"role": "assistant", "content": response.text})
    
    
+
 
