@@ -3,14 +3,7 @@ import google.generativeai as genai
 import requests
 import pypdf
 import os
-import time # Add this to the top imports
-
-# ... inside the chat loop ...
-with st.chat_message("assistant"):
-    with st.spinner("Thinking..."):
-        time.sleep(2) # Wait 2 seconds to respect the speed limit
-        chat = st.session_state.chat_session
-        response = chat.send_message(user_input)
+import time
 
 # --- CONFIGURATION ---
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY", None)
@@ -20,6 +13,7 @@ VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
 # --- SETUP ---
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
+    # Using 'gemini-1.5-flash' for better stability
     model = genai.GenerativeModel('gemini-1.5-flash')
 
 # --- FUNCTIONS ---
@@ -68,87 +62,69 @@ if "interview_active" not in st.session_state:
 # --- SIDEBAR (UPLOAD ONLY) ---
 with st.sidebar:
     st.header("1. Upload Resume")
-    # This forces the user to pick a file. 
-    # The app will NOT proceed without this.
     uploaded_file = st.file_uploader("Choose a PDF file...", type=["pdf"])
 
     if uploaded_file:
         st.success("File Uploaded! ✅")
         
-        # Only show the button if file is there and interview hasn't started
+        # Start Button
         if not st.session_state.interview_active:
             if st.button("🚀 Start Interview"):
                 with st.spinner("AI is reading your resume..."):
-                    # Read the User's PDF
-                    text = read_pdf(uploaded_file)
-                    
-                    # Send to AI
-                    prompt = f"Resume Content: {text}. \n\nAct as a professional interviewer. Greet the candidate by name (if found) and ask the first question based on this resume."
-                    
-                    chat = model.start_chat(history=[])
-                    response = chat.send_message(prompt)
-                    
-                    # Save State
-                    st.session_state.chat_session = chat
-                    st.session_state.messages.append({"role": "assistant", "content": response.text})
-                    st.session_state.interview_active = True
-                    st.rerun()
-
-# --- MAIN AREA ---
-
-# If NO interview active, show instructions
-if not st.session_state.interview_active:
-    st.info("👈 Please upload your Resume (PDF) in the sidebar to begin.")
-    st.write("The AI needs to read your resume to ask specific questions.")
-
-# If interview IS active, show the Chat
-else:
-    # Display Chat History
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-
-    # Chat Input (Only appears when interview is active)
-    user_input = st.chat_input("Type your answer here...")
-
-  if user_input:
-        # CHECK: Did they start the interview yet?
-        if not st.session_state.interview_active:
-            st.warning("⚠️ Please upload your Resume in the sidebar and click 'Start Interview' first!")
-        else:
-            # 1. Show User Message
-            st.session_state.messages.append({"role": "user", "content": user_input})
-            with st.chat_message("user"):
-                st.write(user_input)
-
-            # 2. Get AI Response (With Error Fix)
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
                     try:
-                        # Attempt to get answer
-                        chat = st.session_state.chat_session
-                        response = chat.send_message(user_input)
-                        st.write(response.text)
+                        text = read_pdf(uploaded_file)
+                        prompt = f"Resume Content: {text}. \n\nAct as a professional interviewer. Greet the candidate by name (if found) and ask the first question based on this resume."
                         
-                        # AUDIO GENERATION
-                        audio_bytes = get_elevenlabs_audio(response.text)
-                        if audio_bytes:
-                            st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+                        chat = model.start_chat(history=[])
+                        response = chat.send_message(prompt)
                         
-                        # Save success to history
+                        # Save State
+                        st.session_state.chat_session = chat
                         st.session_state.messages.append({"role": "assistant", "content": response.text})
-
+                        st.session_state.interview_active = True
+                        st.rerun()
                     except Exception as e:
-                        # 🚨 CATCH THE ERROR HERE
-                        if "429" in str(e) or "ResourceExhausted" in str(e):
-                            st.error("🚦 Speed Limit Hit! Please wait 10-20 seconds before replying again.")
-                        else:
-                            st.error(f"System Error: {e}")
-                
-        # Save AI Message
-        st.session_state.messages.append({"role": "assistant", "content": response.text})
-   
-   
+                        st.error(f"Error starting interview: {e}")
 
+# --- MAIN CHAT AREA ---
 
+# Show Chat History
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.write(msg["content"])
 
+# Chat Input (Always visible)
+user_input = st.chat_input("Type your answer here...")
+
+if user_input:
+    # CHECK: Did they start the interview yet?
+    if not st.session_state.interview_active:
+        st.warning("⚠️ Please upload your Resume in the sidebar and click 'Start Interview' first!")
+    else:
+        # 1. Show User Message
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        with st.chat_message("user"):
+            st.write(user_input)
+
+        # 2. Get AI Response (With Crash Protection)
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                try:
+                    chat = st.session_state.chat_session
+                    response = chat.send_message(user_input)
+                    st.write(response.text)
+                    
+                    # Audio
+                    audio_bytes = get_elevenlabs_audio(response.text)
+                    if audio_bytes:
+                        st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+                    
+                    # Save AI Message
+                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+
+                except Exception as e:
+                    # Handle Speed Limit or other errors
+                    if "429" in str(e) or "ResourceExhausted" in str(e):
+                        st.error("🚦 Speed Limit Hit! Please wait 20 seconds before replying again.")
+                    else:
+                        st.error(f"System Error: {e}")
