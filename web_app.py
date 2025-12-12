@@ -10,37 +10,12 @@ GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY", None)
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", None)
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
 
-# --- SMART BRAIN SETUP ---
-# This block tries multiple models until one works.
+# --- SETUP ---
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
     
-    # List of models to try (Newest -> Oldest)
-    models_to_try = [
-        'gemini-1.5-flash',  # Best balance
-        'gemini-pro',        # Old reliable
-        'gemini-1.0-pro',    # Deep backup
-    ]
-    
-    active_model = None
-    
-    for model_name in models_to_try:
-        try:
-            test_model = genai.GenerativeModel(model_name)
-            # Silent test to see if it exists
-            # We don't generate content here to save quota, just defining it is usually safe.
-            # But to be 100% sure we catch the 404, we'll assign it and proceed.
-            active_model = test_model
-            print(f"✅ Success! Using model: {model_name}")
-            break # Stop loop if it works
-        except Exception:
-            continue # Try next one
-            
-    # If all failed, default to 'gemini-pro' and hope for the best
-    if not active_model:
-        active_model = genai.GenerativeModel('gemini-pro')
-    
-    model = active_model
+    # 🛑 HARDCODED FIX: Using 'gemini-pro' because it works on all library versions
+    model = genai.GenerativeModel('gemini-pro')
 
 # --- FUNCTIONS ---
 def get_elevenlabs_audio(text):
@@ -105,9 +80,7 @@ with st.sidebar:
                         st.session_state.interview_active = True
                         st.rerun()
                     except Exception as e:
-                        # If the "Smart Setup" failed, this catches the specific error
                         st.error(f"Error starting interview: {e}")
-                        st.write("Tip: Check if your API Key has access to Gemini models.")
 
 # --- MAIN CHAT ---
 for msg in st.session_state.messages:
@@ -128,8 +101,7 @@ if user_input:
             with st.spinner("Thinking..."):
                 try:
                     chat = st.session_state.chat_session
-                    # ⚠️ Added delay to prevent '429 Speed Limit' errors
-                    time.sleep(1) 
+                    time.sleep(1) # Safety delay
                     response = chat.send_message(user_input)
                     st.write(response.text)
                     
@@ -143,6 +115,6 @@ if user_input:
                     if "429" in str(e) or "ResourceExhausted" in str(e):
                         st.error("🚦 Speed Limit Hit! Please wait 10 seconds before replying again.")
                     elif "404" in str(e):
-                        st.error("❌ Model Error: The server cannot find the AI model. Try rebooting the app.")
+                         st.error("❌ Model Error: Still facing connection issues. Please try the 'Delete & Redeploy' step below.")
                     else:
                         st.error(f"System Error: {e}")
