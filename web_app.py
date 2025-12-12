@@ -76,16 +76,37 @@ def get_working_model():
 model = get_working_model()
 
 # --- AUDIO & UTILS ---
+# --- AUDIO FUNCTION (DEBUG MODE) ---
 def get_elevenlabs_audio(text):
-    if not ELEVENLABS_API_KEY: return None
+    # 1. Check if Key exists
+    if not ELEVENLABS_API_KEY:
+        st.error("🚫 Error: ELEVENLABS_API_KEY is missing from Secrets.")
+        return None
+
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}"
-    headers = {"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json"}
-    data = {"text": text, "model_id": "eleven_flash_v2_5", "voice_settings": {"stability": 0.5, "similarity_boost": 0.5}}
+    headers = {
+        "xi-api-key": ELEVENLABS_API_KEY,
+        "Content-Type": "application/json"
+    }
+    data = {
+        "text": text,
+        "model_id": "eleven_flash_v2_5", 
+        "voice_settings": {"stability": 0.5, "similarity_boost": 0.5}
+    }
+    
     try:
         response = requests.post(url, json=data, headers=headers)
-        if response.status_code == 200: return response.content
-    except: pass
-    return None
+        
+        # 2. Check for success
+        if response.status_code == 200:
+            return response.content
+        else:
+            # 3. PRINT THE ERROR (This tells us the problem)
+            st.error(f"🔈 Voice Error: {response.text}")
+            return None
+    except Exception as e:
+        st.error(f"Connection Error: {e}")
+        return None
 
 def transcribe_audio(audio_file):
     r = sr.Recognizer()
@@ -169,3 +190,4 @@ if st.session_state.interview_active:
                     else: st.error(f"Error: {e}")
 else:
     if not uploaded_file: st.info("👈 Upload Resume to Start")
+
