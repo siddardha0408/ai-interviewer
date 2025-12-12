@@ -15,7 +15,7 @@ if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
     
     # 🛑 HARDCODED FIX: Using 'gemini-pro' because it works on all library versions
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+    model = genai.GenerativeModel('gemini-3-pro-preview')
 
 # --- FUNCTIONS ---
 def get_elevenlabs_audio(text):
@@ -118,4 +118,5 @@ if user_input:
                          st.error("❌ Model Error: Still facing connection issues. Please try the 'Delete & Redeploy' step below.")
                     else:
                         st.error(f"System Error: {e}")
+
 
