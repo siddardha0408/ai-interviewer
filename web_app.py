@@ -111,27 +111,44 @@ else:
     # Chat Input (Only appears when interview is active)
     user_input = st.chat_input("Type your answer here...")
 
-    if user_input:
-        # Show User Message
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.write(user_input)
+  if user_input:
+        # CHECK: Did they start the interview yet?
+        if not st.session_state.interview_active:
+            st.warning("⚠️ Please upload your Resume in the sidebar and click 'Start Interview' first!")
+        else:
+            # 1. Show User Message
+            st.session_state.messages.append({"role": "user", "content": user_input})
+            with st.chat_message("user"):
+                st.write(user_input)
 
-        # Get AI Response
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                chat = st.session_state.chat_session
-                response = chat.send_message(user_input)
-                st.write(response.text)
-                
-                # Play Audio
-                audio_bytes = get_elevenlabs_audio(response.text)
-                if audio_bytes:
-                    st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+            # 2. Get AI Response (With Error Fix)
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    try:
+                        # Attempt to get answer
+                        chat = st.session_state.chat_session
+                        response = chat.send_message(user_input)
+                        st.write(response.text)
+                        
+                        # AUDIO GENERATION
+                        audio_bytes = get_elevenlabs_audio(response.text)
+                        if audio_bytes:
+                            st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+                        
+                        # Save success to history
+                        st.session_state.messages.append({"role": "assistant", "content": response.text})
+
+                    except Exception as e:
+                        # 🚨 CATCH THE ERROR HERE
+                        if "429" in str(e) or "ResourceExhausted" in str(e):
+                            st.error("🚦 Speed Limit Hit! Please wait 10-20 seconds before replying again.")
+                        else:
+                            st.error(f"System Error: {e}")
                 
         # Save AI Message
         st.session_state.messages.append({"role": "assistant", "content": response.text})
    
    
+
 
 
