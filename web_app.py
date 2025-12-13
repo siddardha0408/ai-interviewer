@@ -7,7 +7,7 @@ import os
 # --- CONFIGURATION ---
 # Checks for keys in Streamlit Secrets.
 GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY", None)
-ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", None)
+ELEVENLABS_API_KEY = st.secrets.get("E", None)
 VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel Voice
 
 # --- SETUP ---
@@ -128,3 +128,4 @@ if user_input:
                 st.caption("🔇 Voice mode unavailable (Server Limit)")
             
     st.session_state.messages.append({"role": "assistant", "content": response.text})
+
