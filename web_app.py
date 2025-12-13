@@ -14,7 +14,7 @@ VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
     # Using 1.5-flash because it is fast and supports audio input directly
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-flash-latest')
 
 # --- FUNCTIONS ---
 
@@ -164,3 +164,4 @@ else:
         # Note: Streamlit handles reruns automatically for chat_input, 
         # but for audio_input we might need manual reset logic in complex apps.
         # For now, this standard flow works best.
+
